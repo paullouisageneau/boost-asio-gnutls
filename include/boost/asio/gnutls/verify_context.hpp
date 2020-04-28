@@ -1,6 +1,6 @@
 //
-// ssl/context.hpp
-// ~~~~~~~~~~~~~~~
+// gnutls/context.hpp
+// ~~~~~~~~~~~~~~~~~~
 //
 // Copyright (c) 2020 Paul-Louis Ageneau (paul-louis at ageneau dot org)
 //
@@ -22,15 +22,14 @@ class verify_context
 public:
     using native_handle_type = gnutls_x509_crt_t;
 
-    explicit verify_context(native_handle_type handle)
-        : m_handle(handle)
+    explicit verify_context(native_handle_type cert)
+        : m_cert(cert)
     {}
 
-    native_handle_type native_handle() { return m_handle; }
+    native_handle_type native_handle() { return m_cert; }
 
 private:
-  // The underlying native implementation.
-    native_handle_type m_handle;
+    gnutls_x509_crt_t m_cert;
 };
 
 } // namespace gnutls

@@ -1,6 +1,6 @@
 //
-// ssl/stream.hpp
-// ~~~~~~~~~~~~~~~
+// gnutls/stream.hpp
+// ~~~~~~~~~~~~~~~~~
 //
 // Copyright (c) 2020 Paul-Louis Ageneau (paul-louis at ageneau dot org)
 //
@@ -12,9 +12,9 @@
 #define BOOST_ASIO_GNUTLS_STREAM_HPP
 
 #include "context.hpp"
+#include "stream_base.hpp"
 
 #include <boost/asio.hpp>
-#include <boost/system/error_code.hpp>
 
 #ifndef BOOST_NO_EXCEPTIONS
 #include <boost/system/system_error.hpp>
@@ -24,8 +24,6 @@
 #include <gnutls/x509.h>
 
 #include <cstddef>
-#include <iterator>
-#include <limits>
 #include <list>
 #include <sstream>
 #include <string>
@@ -34,40 +32,6 @@
 namespace boost {
 namespace asio {
 namespace gnutls {
-
-class stream_base
-{
-public:
-    using error_code = boost::system::error_code;
-    using native_handle_type = gnutls_session_t;
-
-    enum handshake_type
-    {
-        client,
-        server
-    };
-
-    stream_base(context& ctx) { set_context(ctx); }
-    stream_base(stream_base&& other)
-        : m_context_impl(std::move(other.m_context_impl))
-    {}
-    stream_base(stream_base const& other) = delete;
-    virtual ~stream_base() = default;
-
-    context& get_context() const
-    {
-        if (!m_context_impl->parent) throw std::logic_error("access to destroyed ssl context");
-
-        return *m_context_impl->parent;
-    }
-
-    void set_context(context& ctx) { m_context_impl = ctx.m_impl; }
-
-    virtual native_handle_type native_handle() = 0;
-
-protected:
-    std::shared_ptr<context::impl> m_context_impl;
-};
 
 template <typename next_layer_type> class stream : public stream_base
 {
