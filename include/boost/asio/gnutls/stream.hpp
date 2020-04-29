@@ -674,7 +674,10 @@ private:
             }
 
             if (context_impl->verify_callback)
-                verified = context_impl->verify_callback(verified, verify_context(cert));
+            {
+                verify_context ctx(cert);
+                verified = context_impl->verify_callback(verified, ctx);
+            }
 
             gnutls_x509_crt_deinit(cert);
             return verified ? GNUTLS_E_SUCCESS : GNUTLS_E_CERTIFICATE_ERROR;
