@@ -33,9 +33,10 @@ namespace boost {
 namespace asio {
 namespace gnutls {
 
-template <typename next_layer_type> class stream : public stream_base
+template <typename NextLayer> class stream : public stream_base
 {
 public:
+    using next_layer_type = NextLayer;
     using lowest_layer_type = typename next_layer_type::lowest_layer_type;
     using executor_type = typename next_layer_type::executor_type;
     using io_context = boost::asio::io_context;
