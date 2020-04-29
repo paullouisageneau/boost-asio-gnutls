@@ -42,6 +42,12 @@ using const_buffer = boost::asio::const_buffer;
 class context : public context_base
 {
 public:
+    enum password_purpose
+    {
+        for_reading,
+        for_writing
+    };
+
     explicit context(method m)
         : m_impl(std::make_shared<impl>(this, m))
     {}
@@ -135,17 +141,18 @@ public:
     }
 
 #ifndef BOOST_NO_EXCEPTIONS
-    void use_passphrase(std::string const& pass)
+    template <typename PasswordCallback> void set_password_callback(PasswordCallback callback)
     {
         error_code ec;
-        use_passphrase(pass, ec);
+        set_password_callback(callback, ec);
         if (ec) boost::throw_exception(boost::system::system_error(ec));
     }
 #endif
 
-    error_code use_passphrase(std::string const& pass, error_code& ec)
+    template <typename PasswordCallback>
+    error_code set_password_callback(PasswordCallback callback, error_code& ec)
     {
-        m_impl->passphrase = pass;
+        m_impl->password_callback = callback;
         return ec;
     }
 
@@ -178,13 +185,17 @@ public:
         if (m_impl->certificate_file.empty())
             return ec = boost::asio::error::operation_not_supported;
 
+        std::size_t const max_len = 256;
+        std::string pass;
+        if (m_impl->password_callback) pass = m_impl->password_callback(max_len, for_reading);
+
         m_impl->private_key_file = filename;
         int ret = gnutls_certificate_set_x509_key_file2(m_impl->cred,
                                                         m_impl->certificate_file.c_str(),
                                                         m_impl->private_key_file.c_str(),
                                                         format == pem ? GNUTLS_X509_FMT_PEM
                                                                       : GNUTLS_X509_FMT_DER,
-                                                        m_impl->passphrase.c_str(),
+                                                        pass.c_str(),
                                                         0);
         if (ret != GNUTLS_E_SUCCESS) ec = error_code(ret, error::get_ssl_category());
         return ec;
@@ -305,8 +316,6 @@ private:
         bool is_server() const { return (static_cast<unsigned int>(m) & 0x2) != 0; }
         unsigned int tls_version() const { return static_cast<unsigned int>(m) >> 16; }
 
-        bool verify_dn(gnutls_x509_crt_t cert);
-
         const method m;
         context* parent;
 
@@ -319,6 +328,7 @@ private:
         std::string passphrase;
 
         std::function<bool(bool preverified, verify_context& ctx)> verify_callback;
+        std::function<std::string(std::size_t max_len, password_purpose purpose)> password_callback;
         std::function<bool(stream_base& s, std::string name)> servername_callback;
     };
 
