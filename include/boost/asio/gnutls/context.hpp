@@ -284,25 +284,6 @@ public:
         return ec;
     }
 
-    // -------- Other extensions ---------
-
-    error_code set_verify_trust(const_buffer const& certificate, file_format format, error_code& ec)
-    {
-        std::string cert(static_cast<char const*>(certificate.data()), certificate.size());
-
-        gnutls_datum_t ca;
-        ca.data = reinterpret_cast<unsigned char*>(
-            const_cast<char*>(cert.c_str())); // must be null terminated
-        ca.size = cert.size();
-
-        // Warning: returns the number of certificates processed or a negative
-        // error code on error
-        int ret = gnutls_certificate_set_x509_trust_mem(
-            m_impl->cred, &ca, format == pem ? GNUTLS_X509_FMT_PEM : GNUTLS_X509_FMT_DER);
-        if (ret < 0) ec = error_code(ret, error::get_ssl_category());
-        return ec;
-    }
-
     // -----------------------------------
 
 private:
