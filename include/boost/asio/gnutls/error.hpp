@@ -44,6 +44,9 @@ static const boost::system::error_category& get_ssl_category()
 
 static const boost::system::error_category& get_stream_category() { return get_ssl_category(); }
 
+static const auto& ssl_category BOOST_ASIO_UNUSED_VARIABLE = get_ssl_category();
+static const auto& stream_category BOOST_ASIO_UNUSED_VARIABLE = get_stream_category();
+
 } // namespace error
 
 } // namespace gnutls
