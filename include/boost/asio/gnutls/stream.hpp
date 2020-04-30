@@ -183,6 +183,7 @@ public:
     {
         error_code ec;
         handshake(type, ec);
+        if (ec) boost::throw_exception(boost::system::system_error(ec));
     }
 
     error_code handshake(handshake_type type, error_code& ec)
@@ -200,7 +201,7 @@ public:
 
         m_impl->is_handshake_done = true;
         m_next_layer->non_blocking(true, ec);
-        return ec = {};
+        return ec;
     }
 
 #ifndef BOOST_NO_EXCEPTIONS
@@ -242,7 +243,8 @@ public:
         if (ret != GNUTLS_E_SUCCESS) return ec = error_code(ret, error::get_ssl_category());
 
         m_next_layer->non_blocking(true, ec);
-        return ec = {};
+        ec.clear();
+        return ec;
     }
 
 #ifndef BOOST_NO_EXCEPTIONS
@@ -649,6 +651,9 @@ private:
             if (!im->parent) return GNUTLS_E_INVALID_SESSION;
             auto context_impl = im->parent->m_context_impl;
 
+            if (!(context_impl->verify & context::verify_peer))
+                return GNUTLS_E_SUCCESS; // no verification requested
+
             if (gnutls_certificate_type_get(session) != GNUTLS_CRT_X509)
                 return GNUTLS_E_NO_CERTIFICATE_FOUND;
 
@@ -666,12 +671,9 @@ private:
             }
 
             bool verified = false;
-            if (context_impl->verify & context::verify_peer)
-            {
-                unsigned int status = 0;
-                int ret = gnutls_certificate_verify_peers2(session, &status);
-                if (ret == GNUTLS_E_SUCCESS && !(status & GNUTLS_CERT_INVALID)) verified = true;
-            }
+            unsigned int status = 0;
+            ret = gnutls_certificate_verify_peers2(session, &status);
+            if (ret == GNUTLS_E_SUCCESS && !(status & GNUTLS_CERT_INVALID)) verified = true;
 
             if (context_impl->verify_callback)
             {
