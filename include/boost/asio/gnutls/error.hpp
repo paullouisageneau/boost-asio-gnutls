@@ -36,13 +36,13 @@ public:
 
 namespace error {
 
-const boost::system::error_category& get_ssl_category()
+static const boost::system::error_category& get_ssl_category()
 {
     static error_category instance;
     return instance;
 }
 
-const boost::system::error_category& get_stream_category() { return get_ssl_category(); }
+static const boost::system::error_category& get_stream_category() { return get_ssl_category(); }
 
 } // namespace error
 
