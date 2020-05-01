@@ -287,7 +287,7 @@ public:
     std::size_t write_some(const ConstBufferSequence& buffers)
     {
         error_code ec;
-        auto bytes_sent = m_impl->write_some(buffers, ec);
+        auto bytes_sent = write_some(buffers, ec);
         if (ec) boost::throw_exception(boost::system::system_error(ec));
         return bytes_sent;
     }

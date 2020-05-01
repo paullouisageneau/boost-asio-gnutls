@@ -305,6 +305,16 @@ public:
 
     // ---------- SNI extension ----------
 
+#ifndef BOOST_NO_EXCEPTIONS
+    void set_servername_callback(std::function<bool(stream_base& s, std::string name)> cb)
+    {
+        error_code ec;
+        set_servername_callback(cb, ec);
+        if (ec) boost::throw_exception(boost::system::system_error(ec));
+    }
+
+#endif
+
     error_code set_servername_callback(std::function<bool(stream_base& s, std::string name)> cb,
                                        error_code& ec)
     {
@@ -358,5 +368,7 @@ private:
 } // namespace gnutls
 } // namespace asio
 } // namespace boost
+
+#include <boost/asio/gnutls/stream_base.hpp>
 
 #endif
