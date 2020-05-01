@@ -89,8 +89,7 @@ public:
 
         set_impl(type);
         m_impl->handshake_handler = std::move(handler);
-        m_impl->want_direction = type == client ? direction::write : direction::read;
-        m_impl->async_schedule();
+        m_impl->handle_handshake();
     }
 
     template <typename ConstBufferSequence, typename BufferedHandshakeHandler>
@@ -175,8 +174,7 @@ public:
         }
 
         m_impl->shutdown_handler = std::move(handler);
-        m_impl->want_direction = direction::write;
-        m_impl->async_schedule();
+        m_impl->handle_shutdown();
     }
 
     void handshake(handshake_type type)
