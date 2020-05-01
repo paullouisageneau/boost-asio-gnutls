@@ -125,6 +125,23 @@ public:
     }
 
 #ifndef BOOST_NO_EXCEPTIONS
+    void set_verify_depth(int depth)
+    {
+        error_code ec;
+        set_verify_depth(depth, ec);
+        if (ec) boost::throw_exception(boost::system::system_error(ec));
+    }
+#endif
+
+    error_code set_verify_depth(int depth, error_code& ec)
+    {
+        unsigned int const max_bits = 8200; // default
+        unsigned int const max_depth = static_cast<unsigned int>(depth);
+        gnutls_certificate_set_verify_limits(m_impl->cred, max_bits, max_depth);
+        return ec;
+    }
+
+#ifndef BOOST_NO_EXCEPTIONS
     template <typename VerifyCallback> void set_verify_callback(VerifyCallback callback)
     {
         error_code ec;
