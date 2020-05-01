@@ -47,9 +47,6 @@ public:
         , m_next_layer(std::make_shared<next_layer_type>(std::forward<Arg>(arg)))
         , m_tls_version(ctx.m_impl->tls_version())
     {
-        error_code ec;
-        m_next_layer->non_blocking(true, ec);
-
         set_impl(ctx.m_impl->is_server() ? server : client);
     }
 
@@ -84,6 +81,14 @@ public:
         {
             post(get_executor(),
                  std::bind(std::move(handler), boost::asio::error::operation_not_supported));
+            return;
+        }
+
+        error_code ec;
+        m_next_layer->non_blocking(true, ec);
+        if (ec)
+        {
+            post(get_executor(), std::bind(std::move(handler), ec));
             return;
         }
 
@@ -195,10 +200,11 @@ public:
             ret = gnutls_handshake(m_impl->session);
         } while (ret != GNUTLS_E_SUCCESS && !gnutls_error_is_fatal(ret));
 
-        if (ret != GNUTLS_E_SUCCESS) return ec = error_code(ret, error::get_ssl_category());
-
-        m_impl->is_handshake_done = true;
         m_next_layer->non_blocking(true, ec);
+        if (ec) return ec;
+
+        if (ret != GNUTLS_E_SUCCESS) return ec = error_code(ret, error::get_ssl_category());
+        m_impl->is_handshake_done = true;
         return ec;
     }
 
@@ -238,10 +244,11 @@ public:
             ret = gnutls_bye(m_impl->session, GNUTLS_SHUT_RDWR);
         } while (ret != GNUTLS_E_SUCCESS && !gnutls_error_is_fatal(ret));
 
-        if (ret != GNUTLS_E_SUCCESS) return ec = error_code(ret, error::get_ssl_category());
-
         m_next_layer->non_blocking(true, ec);
         ec.clear();
+
+        if (ret != GNUTLS_E_SUCCESS) return ec = error_code(ret, error::get_ssl_category());
+        m_impl->is_handshake_done = false;
         return ec;
     }
 
