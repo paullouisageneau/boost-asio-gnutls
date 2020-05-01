@@ -23,7 +23,7 @@
 // gnutls_context_compile test
 // ~~~~~~~~~~~~~~~~~~~~~~~
 // The following test checks that all public member functions on the class
-// gnutls::stream::socket compile and link correctly. Runtime failures are ignored.
+// gnutls::context compile and link correctly. Runtime failures are ignored.
 
 namespace gnutls_context_compile {
 
