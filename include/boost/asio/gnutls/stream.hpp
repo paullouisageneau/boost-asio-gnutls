@@ -27,6 +27,7 @@
 #include <list>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace boost {
@@ -37,14 +38,15 @@ template <typename NextLayer> class stream : public stream_base
 {
 public:
     using next_layer_type = NextLayer;
-    using lowest_layer_type = typename next_layer_type::lowest_layer_type;
-    using executor_type = typename next_layer_type::executor_type;
+    using lowest_layer_type =
+        typename std::remove_reference<next_layer_type>::type::lowest_layer_type;
+    using executor_type = typename std::remove_reference<next_layer_type>::type::executor_type;
     using io_context = boost::asio::io_context;
 
     template <typename Arg>
     stream(Arg&& arg, context& ctx)
         : stream_base(ctx)
-        , m_next_layer(std::make_shared<next_layer_type>(std::forward<Arg>(arg)))
+        , m_next_layer(std::forward<Arg>(arg))
         , m_tls_version(ctx.m_impl->tls_version())
     {
         set_impl(ctx.m_impl->is_server() ? server : client);
@@ -65,12 +67,12 @@ public:
         if (m_impl) m_impl->parent = nullptr;
     }
 
-    executor_type get_executor() { return m_next_layer->get_executor(); }
-    io_context& get_io_context() { return m_next_layer->lowest_layer().get_io_context(); }
-    const lowest_layer_type& lowest_layer() const { return m_next_layer->lowest_layer(); }
-    lowest_layer_type& lowest_layer() { return m_next_layer->lowest_layer(); }
-    const next_layer_type& next_layer() const { return *m_next_layer; }
-    next_layer_type& next_layer() { return *m_next_layer; }
+    executor_type get_executor() { return m_next_layer.get_executor(); }
+    io_context& get_io_context() { return m_next_layer.lowest_layer().get_io_context(); }
+    const lowest_layer_type& lowest_layer() const { return m_next_layer.lowest_layer(); }
+    lowest_layer_type& lowest_layer() { return m_next_layer.lowest_layer(); }
+    const next_layer_type& next_layer() const { return m_next_layer; }
+    next_layer_type& next_layer() { return m_next_layer; }
 
     native_handle_type native_handle() { return m_impl->session; }
 
@@ -85,7 +87,7 @@ public:
         }
 
         error_code ec;
-        m_next_layer->non_blocking(true, ec);
+        m_next_layer.non_blocking(true, ec);
         if (ec)
         {
             post(get_executor(), std::bind(std::move(handler), ec));
@@ -191,7 +193,7 @@ public:
 
     error_code handshake(handshake_type type, error_code& ec)
     {
-        m_next_layer->non_blocking(false, ec);
+        m_next_layer.non_blocking(false, ec);
         if (ec) return ec;
 
         set_impl(type);
@@ -200,7 +202,7 @@ public:
             ret = gnutls_handshake(m_impl->session);
         } while (ret != GNUTLS_E_SUCCESS && !gnutls_error_is_fatal(ret));
 
-        m_next_layer->non_blocking(true, ec);
+        m_next_layer.non_blocking(true, ec);
         if (ec) return ec;
 
         if (ret != GNUTLS_E_SUCCESS) return ec = error_code(ret, error::get_ssl_category());
@@ -236,7 +238,7 @@ public:
 
     error_code shutdown(error_code& ec)
     {
-        m_next_layer->non_blocking(false, ec);
+        m_next_layer.non_blocking(false, ec);
         if (ec) return ec;
 
         int ret;
@@ -244,7 +246,7 @@ public:
             ret = gnutls_bye(m_impl->session, GNUTLS_SHUT_RDWR);
         } while (ret != GNUTLS_E_SUCCESS && !gnutls_error_is_fatal(ret));
 
-        m_next_layer->non_blocking(true, ec);
+        m_next_layer.non_blocking(true, ec);
         ec.clear();
 
         if (ret != GNUTLS_E_SUCCESS) return ec = error_code(ret, error::get_ssl_category());
@@ -345,7 +347,7 @@ private:
                 old->parent = nullptr;
     }
 
-    std::shared_ptr<next_layer_type> m_next_layer;
+    next_layer_type m_next_layer;
 
     const unsigned int m_tls_version; // X*10 + Y => TLS X.Y, 0*10 + Z => SSL Z
 
@@ -353,8 +355,6 @@ private:
     {
         impl(stream* p, handshake_type t)
             : type(t)
-            , next_layer_weak(p->m_next_layer)
-            , executor(p->m_next_layer->get_executor())
             , parent(p)
         {
             int ret = gnutls_init(
@@ -425,8 +425,8 @@ private:
         {
             using namespace std::placeholders;
 
-            auto next_layer = next_layer_weak.lock();
-            if (!next_layer) return;
+            if (!parent) return;
+            auto& next_layer = parent->m_next_layer;
 
             // Start a read operation if GnuTLS wants one
             if (want_read() && !std::exchange(is_reading, true))
@@ -434,7 +434,7 @@ private:
                 if (gnutls_record_check_pending(session) > 0 && read_handler)
                     handle_read();
                 else
-                    next_layer->async_wait(
+                    next_layer.async_wait(
                         next_layer_type::wait_read,
                         std::bind(&impl::handle_read, this->shared_from_this(), _1));
             }
@@ -442,9 +442,8 @@ private:
             // Start a write operation if GnuTLS wants one
             if (want_write() && !std::exchange(is_writing, true))
             {
-                next_layer->async_wait(
-                    next_layer_type::wait_write,
-                    std::bind(&impl::handle_write, this->shared_from_this(), _1));
+                next_layer.async_wait(next_layer_type::wait_write,
+                                      std::bind(&impl::handle_write, this->shared_from_this(), _1));
             }
         }
 
@@ -606,15 +605,15 @@ private:
         static ssize_t pull_func(void* ptr, void* buffer, std::size_t size)
         {
             auto* im = static_cast<impl*>(ptr);
-            auto next_layer = im->next_layer_weak.lock();
-            if (!next_layer)
+            if (!im->parent)
             {
                 gnutls_transport_set_errno(im->session, ECONNRESET);
                 return -1;
             }
 
+            auto& next_layer = im->parent->m_next_layer;
             error_code ec;
-            std::size_t bytes_read = next_layer->read_some(boost::asio::buffer(buffer, size), ec);
+            std::size_t bytes_read = next_layer.read_some(boost::asio::buffer(buffer, size), ec);
             if (ec && ec != boost::asio::error::eof)
             {
                 gnutls_transport_set_errno(
@@ -629,16 +628,16 @@ private:
         static ssize_t push_func(void* ptr, const void* data, std::size_t len)
         {
             auto* im = static_cast<impl*>(ptr);
-            auto next_layer = im->next_layer_weak.lock();
-            if (!next_layer)
+            if (!im->parent)
             {
                 gnutls_transport_set_errno(im->session, ECONNRESET);
                 return -1;
             }
 
+            auto& next_layer = im->parent->m_next_layer;
             error_code ec;
             std::size_t bytes_written =
-                next_layer->write_some(boost::asio::const_buffer(data, len), ec);
+                next_layer.write_some(boost::asio::const_buffer(data, len), ec);
             if (ec)
             {
                 gnutls_transport_set_errno(
@@ -725,8 +724,6 @@ private:
         }
 
         const handshake_type type;
-        const std::weak_ptr<next_layer_type> next_layer_weak;
-        const executor_type executor;
         stream* parent;
 
         gnutls_session_t session;
