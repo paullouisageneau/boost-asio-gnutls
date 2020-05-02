@@ -29,7 +29,7 @@ namespace gnutls_context_compile {
 
 bool verify_callback(bool, boost::asio::gnutls::verify_context&) { return false; }
 
-bool servername_callback(boost::asio::gnutls::stream_base& s, std::string name) { return false; }
+bool server_name_callback(boost::asio::gnutls::stream_base& s, std::string name) { return false; }
 
 void test()
 {
@@ -51,8 +51,8 @@ void test()
 
         // SNI extension
 
-        context.set_servername_callback(servername_callback);
-        context.set_servername_callback(servername_callback, ec);
+        context.set_server_name_callback(server_name_callback);
+        context.set_server_name_callback(server_name_callback, ec);
     }
     catch (std::exception&)
     {}

@@ -306,19 +306,19 @@ public:
     // ---------- SNI extension ----------
 
 #ifndef BOOST_NO_EXCEPTIONS
-    void set_servername_callback(std::function<bool(stream_base& s, std::string name)> cb)
+    void set_server_name_callback(std::function<bool(stream_base& s, std::string name)> cb)
     {
         error_code ec;
-        set_servername_callback(cb, ec);
+        set_server_name_callback(cb, ec);
         if (ec) boost::throw_exception(boost::system::system_error(ec));
     }
 
 #endif
 
-    error_code set_servername_callback(std::function<bool(stream_base& s, std::string name)> cb,
+    error_code set_server_name_callback(std::function<bool(stream_base& s, std::string name)> cb,
                                        error_code& ec)
     {
-        m_impl->servername_callback = std::move(cb);
+        m_impl->server_name_callback = std::move(cb);
         return ec;
     }
 
@@ -356,7 +356,7 @@ private:
 
         std::function<bool(bool preverified, verify_context& ctx)> verify_callback;
         std::function<std::string(std::size_t max_len, password_purpose purpose)> password_callback;
-        std::function<bool(stream_base& s, std::string name)> servername_callback;
+        std::function<bool(stream_base& s, std::string name)> server_name_callback;
     };
 
     std::shared_ptr<impl> m_impl;

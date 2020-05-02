@@ -409,7 +409,7 @@ private:
 
         ~impl() { gnutls_deinit(session); }
 
-        std::string get_servername() const
+        std::string get_server_name() const
         {
             char buf[256];
             size_t len = sizeof(buf);
@@ -695,10 +695,10 @@ private:
             if (!im->parent) return GNUTLS_E_INVALID_SESSION;
             auto context_impl = im->parent->m_context_impl;
 
-            auto& callback = context_impl->servername_callback;
+            auto& callback = context_impl->server_name_callback;
             if (!callback) return GNUTLS_E_SUCCESS;
 
-            if (!callback(*im->parent, im->get_servername())) return GNUTLS_E_UNRECOGNIZED_NAME;
+            if (!callback(*im->parent, im->get_server_name())) return GNUTLS_E_UNRECOGNIZED_NAME;
 
             // context may have been switched
             context_impl = im->parent->m_context_impl;
