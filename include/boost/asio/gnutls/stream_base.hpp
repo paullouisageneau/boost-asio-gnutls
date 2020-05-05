@@ -55,6 +55,11 @@ public:
 
     virtual native_handle_type native_handle() = 0;
 
+#ifndef BOOST_NO_EXCEPTIONS
+    virtual void set_host_name(std::string const& name) = 0;
+#endif
+    virtual error_code set_host_name(std::string const& name, error_code& ec) = 0;
+
 protected:
     std::shared_ptr<context::impl> m_context_impl;
 };
