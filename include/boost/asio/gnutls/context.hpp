@@ -72,13 +72,12 @@ public:
     {
         error_code ec;
         set_options(opts, ec);
-        if (ec) boost::throw_exception(boost::system::system_error(ec));
     }
 #endif
 
     error_code set_options(options opts, error_code& ec)
     {
-        m_impl->opts = opts;
+        m_impl->opts |= opts;
         return ec;
     }
 
@@ -87,7 +86,6 @@ public:
     {
         error_code ec;
         clear_options(ec);
-        if (ec) boost::throw_exception(boost::system::system_error(ec));
     }
 #endif
 
@@ -114,7 +112,6 @@ public:
     {
         error_code ec;
         set_verify_mode(v, ec);
-        if (ec) boost::throw_exception(boost::system::system_error(ec));
     }
 #endif
 
@@ -129,7 +126,6 @@ public:
     {
         error_code ec;
         set_verify_depth(depth, ec);
-        if (ec) boost::throw_exception(boost::system::system_error(ec));
     }
 #endif
 
@@ -146,7 +142,6 @@ public:
     {
         error_code ec;
         set_verify_callback(callback, ec);
-        if (ec) boost::throw_exception(boost::system::system_error(ec));
     }
 #endif
 

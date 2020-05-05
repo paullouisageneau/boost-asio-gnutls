@@ -56,6 +56,8 @@ public:
         : stream_base(std::move(other))
         , m_tls_version(std::move(other.m_tls_version))
         , m_next_layer(std::move(other.m_next_layer))
+        , m_verify(std::move(other.m_verify))
+        , m_verify_callback(std::move(other.m_verify_callback))
         , m_impl(std::move(other.m_impl))
     {
         m_impl->parent = this;
@@ -75,6 +77,50 @@ public:
     next_layer_type& next_layer() { return m_next_layer; }
 
     native_handle_type native_handle() { return m_impl->session; }
+
+#ifndef BOOST_NO_EXCEPTIONS
+    void set_verify_mode(verify_mode v)
+    {
+        error_code ec;
+        set_verify_mode(v, ec);
+    }
+#endif
+
+    // Warning: for clients only (verify_none or verify_peer)
+    error_code set_verify_mode(verify_mode v, error_code& ec)
+    {
+        m_verify = v;
+        return ec;
+    }
+
+#ifndef BOOST_NO_EXCEPTIONS
+    void set_verify_depth(int depth)
+    {
+        error_code ec;
+        set_verify_depth(depth, ec);
+    }
+#endif
+
+    // Warning: ignored
+    error_code set_verify_depth(int, error_code& ec)
+    {
+        return ec;
+    }
+
+#ifndef BOOST_NO_EXCEPTIONS
+    template <typename VerifyCallback> void set_verify_callback(VerifyCallback callback)
+    {
+        error_code ec;
+        set_verify_callback(callback, ec);
+    }
+#endif
+
+    template <typename VerifyCallback>
+    error_code set_verify_callback(VerifyCallback callback, error_code& ec)
+    {
+        m_verify_callback = callback;
+        return ec;
+    }
 
     template <typename HandshakeHandler>
     void async_handshake(handshake_type type, HandshakeHandler handler)
@@ -348,6 +394,8 @@ private:
     }
 
     next_layer_type m_next_layer;
+    verify_mode m_verify = -1;
+    std::function<bool(bool preverified, verify_context& ctx)> m_verify_callback;
 
     const unsigned int m_tls_version; // X*10 + Y => TLS X.Y, 0*10 + Z => SSL Z
 
@@ -655,7 +703,11 @@ private:
             if (!im->parent) return GNUTLS_E_INVALID_SESSION;
             auto context_impl = im->parent->m_context_impl;
 
-            if (!(context_impl->verify & context::verify_peer))
+            auto verify = im->parent->m_verify >= 0 ? im->parent->m_verify : context_impl->verify;
+            auto verify_callback = im->parent->m_verify_callback ? im->parent->m_verify_callback
+                                                                 : context_impl->verify_callback;
+
+            if (!(verify & context::verify_peer))
                 return GNUTLS_E_SUCCESS; // no verification requested
 
             if (gnutls_certificate_type_get(session) != GNUTLS_CRT_X509)
@@ -679,10 +731,10 @@ private:
             ret = gnutls_certificate_verify_peers2(session, &status);
             if (ret == GNUTLS_E_SUCCESS && !(status & GNUTLS_CERT_INVALID)) verified = true;
 
-            if (context_impl->verify_callback)
+            if (verify_callback)
             {
                 verify_context ctx(cert);
-                verified = context_impl->verify_callback(verified, ctx);
+                verified = verify_callback(verified, ctx);
             }
 
             gnutls_x509_crt_deinit(cert);

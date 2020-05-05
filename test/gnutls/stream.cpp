@@ -29,25 +29,17 @@
 
 namespace gnutls_stream_compile {
 
-void handshake_handler(const boost::system::error_code&)
-{
-}
+bool verify_callback(bool, boost::asio::gnutls::verify_context&) { return false; }
 
-void buffered_handshake_handler(const boost::system::error_code&, std::size_t)
-{
-}
+void handshake_handler(const boost::system::error_code&) {}
 
-void shutdown_handler(const boost::system::error_code&)
-{
-}
+void buffered_handshake_handler(const boost::system::error_code&, std::size_t) {}
 
-void write_some_handler(const boost::system::error_code&, std::size_t)
-{
-}
+void shutdown_handler(const boost::system::error_code&) {}
 
-void read_some_handler(const boost::system::error_code&, std::size_t)
-{
-}
+void write_some_handler(const boost::system::error_code&, std::size_t) {}
+
+void read_some_handler(const boost::system::error_code&, std::size_t) {}
 
 void test()
 {
@@ -75,6 +67,15 @@ void test()
     (void)ex;
 
     // gnutls::stream functions.
+
+    stream1.set_verify_mode(gnutls::verify_none);
+    stream1.set_verify_mode(gnutls::verify_none, ec);
+
+    stream1.set_verify_depth(1);
+    stream1.set_verify_depth(1, ec);
+
+    stream1.set_verify_callback(verify_callback);
+    stream1.set_verify_callback(verify_callback, ec);
 
     gnutls_session_t session1 = stream1.native_handle();
     (void)session1;

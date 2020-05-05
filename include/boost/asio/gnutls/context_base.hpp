@@ -23,6 +23,13 @@ namespace gnutls {
 class stream_base;
 template <typename next_layer_type> class stream;
 
+typedef int verify_mode;
+
+BOOST_ASIO_STATIC_CONSTANT(int, verify_none = 0x00);
+BOOST_ASIO_STATIC_CONSTANT(int, verify_peer = 0x01);
+BOOST_ASIO_STATIC_CONSTANT(int, verify_fail_if_no_peer_cert = 0x02);
+BOOST_ASIO_STATIC_CONSTANT(int, verify_client_once = 0x04); // Ignored
+
 class context_base
 {
 public:
@@ -69,12 +76,13 @@ public:
     BOOST_ASIO_STATIC_CONSTANT(long, no_sslv2 = 0x04);            // Ignored, always disabled
     BOOST_ASIO_STATIC_CONSTANT(long, no_sslv3 = 0x08);
 
-    typedef int verify_mode;
+    using verify_mode = gnutls::verify_mode;
 
-    BOOST_ASIO_STATIC_CONSTANT(int, verify_none = 0x00);
-    BOOST_ASIO_STATIC_CONSTANT(int, verify_peer = 0x01);
-    BOOST_ASIO_STATIC_CONSTANT(int, verify_fail_if_no_peer_cert = 0x02);
-    BOOST_ASIO_STATIC_CONSTANT(int, verify_client_once = 0x04); // Ignored
+    BOOST_ASIO_STATIC_CONSTANT(int, verify_none = gnutls::verify_none);
+    BOOST_ASIO_STATIC_CONSTANT(int, verify_peer = gnutls::verify_peer);
+    BOOST_ASIO_STATIC_CONSTANT(int,
+                               verify_fail_if_no_peer_cert = gnutls::verify_fail_if_no_peer_cert);
+    BOOST_ASIO_STATIC_CONSTANT(int, verify_client_once = gnutls::verify_client_once);
 };
 
 } // namespace gnutls
