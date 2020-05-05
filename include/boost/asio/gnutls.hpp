@@ -14,6 +14,8 @@
 #include <boost/asio/gnutls/context.hpp>
 #include <boost/asio/gnutls/context_base.hpp>
 #include <boost/asio/gnutls/error.hpp>
+#include <boost/asio/gnutls/host_name_verification.hpp>
+#include <boost/asio/gnutls/rfc2818_verification.hpp>
 #include <boost/asio/gnutls/stream.hpp>
 #include <boost/asio/gnutls/stream_base.hpp>
 #include <boost/asio/gnutls/verify_context.hpp>
