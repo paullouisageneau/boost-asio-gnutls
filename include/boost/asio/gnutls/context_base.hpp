@@ -71,7 +71,7 @@ public:
 
     typedef long options;
 
-    BOOST_ASIO_STATIC_CONSTANT(long, default_workarounds = 0x01); // Ignored
+    BOOST_ASIO_STATIC_CONSTANT(long, default_workarounds = 0x01);
     BOOST_ASIO_STATIC_CONSTANT(long, single_dh_use = 0x02);       // Ignored
     BOOST_ASIO_STATIC_CONSTANT(long, no_sslv2 = 0x04);            // Ignored, always disabled
     BOOST_ASIO_STATIC_CONSTANT(long, no_sslv3 = 0x08);

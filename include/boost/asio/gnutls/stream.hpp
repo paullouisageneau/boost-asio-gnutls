@@ -424,8 +424,9 @@ private:
 
             std::ostringstream priority;
             priority << "NORMAL";
+            if (opts & context::default_workarounds) priority << ":%COMPAT";
             if (tls_version > 0 && tls_version < 10 && !(opts & context::no_sslv3))
-                priority << ":+VERS-SSL3.0:%COMPAT";
+                priority << ":+VERS-SSL3.0";
             if (tls_version >= 10)
                 priority << ":-VERS-TLS-ALL:+VERS-TLS" << (tls_version / 10) << '.'
                          << (tls_version % 10);
