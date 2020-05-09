@@ -423,30 +423,19 @@ private:
             auto const tls_version = parent->m_tls_version;
 
             std::ostringstream priority;
+            priority << "NORMAL";
             if (tls_version > 0 && tls_version < 10 && !(opts & context::no_sslv3))
-                priority << "+VERS-SSL3.0:%COMPAT";
-
+                priority << ":+VERS-SSL3.0:%COMPAT";
             if (tls_version >= 10)
-                priority << "-VERS-TLS-ALL:+VERS-TLS" << (tls_version / 10) << '.'
+                priority << ":-VERS-TLS-ALL:+VERS-TLS" << (tls_version / 10) << '.'
                          << (tls_version % 10);
 
-            if (!priority.str().empty())
-            {
-                char const* err_pos = nullptr;
-                ret = gnutls_set_default_priority_append(
-                    session, priority.str().c_str(), &err_pos, 0);
-                if (ret != GNUTLS_E_SUCCESS)
-                    throw std::runtime_error("gnutls_set_default_priority_append for \"" +
-                                             priority.str() +
-                                             "\" failed: " + std::string(gnutls_strerror(ret)));
-            }
-            else
-            {
-                ret = gnutls_set_default_priority(session);
-                if (ret != GNUTLS_E_SUCCESS)
-                    throw std::runtime_error("gnutls_priority_set_direct failed: " +
-                                             std::string(gnutls_strerror(ret)));
-            }
+            char const* err_pos = nullptr;
+            ret = gnutls_priority_set_direct(session, priority.str().c_str(), &err_pos);
+            if (ret != GNUTLS_E_SUCCESS)
+                throw std::runtime_error("gnutls_priority_set_direct failed for \"" +
+                                         priority.str() +
+                                         "\": " + std::string(gnutls_strerror(ret)));
 
             gnutls_certificate_set_verify_function(context_impl->cred, verify_func);
             ret = gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, context_impl->cred);
