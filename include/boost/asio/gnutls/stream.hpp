@@ -164,6 +164,15 @@ public:
                            std::size_t(0)));
             return;
         }
+
+        error_code ec;
+        m_next_layer.non_blocking(true, ec);
+        if (ec)
+        {
+            post(get_executor(), std::bind(std::move(handler), ec, std::size_t(0)));
+            return;
+        }
+
         std::size_t bytes_added = 0;
         for (auto b = buffer_sequence_begin(buffers), end(buffer_sequence_end(buffers)); b != end;
              ++b)
@@ -193,6 +202,14 @@ public:
                  std::bind(std::move(handler),
                            boost::asio::error::operation_not_supported,
                            std::size_t(0)));
+            return;
+        }
+
+        error_code ec;
+        m_next_layer.non_blocking(true, ec);
+        if (ec)
+        {
+            post(get_executor(), std::bind(std::move(handler), ec, std::size_t(0)));
             return;
         }
 
@@ -226,6 +243,14 @@ public:
             return;
         }
 
+        error_code ec;
+        m_next_layer.non_blocking(true, ec);
+        if (ec)
+        {
+            post(get_executor(), std::bind(std::move(handler), ec));
+            return;
+        }
+
         m_impl->shutdown_handler = std::move(handler);
         m_impl->handle_shutdown();
     }
@@ -239,17 +264,11 @@ public:
 
     error_code handshake(handshake_type type, error_code& ec)
     {
-        m_next_layer.non_blocking(false, ec);
-        if (ec) return ec;
-
         set_impl(type);
         int ret;
         do {
             ret = gnutls_handshake(m_impl->session);
         } while (ret != GNUTLS_E_SUCCESS && !gnutls_error_is_fatal(ret));
-
-        m_next_layer.non_blocking(true, ec);
-        if (ec) return ec;
 
         if (ret != GNUTLS_E_SUCCESS) return ec = error_code(ret, error::get_ssl_category());
         m_impl->is_handshake_done = true;
@@ -284,16 +303,10 @@ public:
 
     error_code shutdown(error_code& ec)
     {
-        m_next_layer.non_blocking(false, ec);
-        if (ec) return ec;
-
         int ret;
         do {
             ret = gnutls_bye(m_impl->session, GNUTLS_SHUT_RDWR);
         } while (ret != GNUTLS_E_SUCCESS && !gnutls_error_is_fatal(ret));
-
-        m_next_layer.non_blocking(true, ec);
-        ec.clear();
 
         if (ret != GNUTLS_E_SUCCESS) return ec = error_code(ret, error::get_ssl_category());
         m_impl->is_handshake_done = false;
