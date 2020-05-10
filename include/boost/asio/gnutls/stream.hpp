@@ -487,12 +487,14 @@ private:
 
         void handle_read(error_code ec = {})
         {
+            namespace error = boost::asio::error;
+
             is_reading = false;
             if (read_handler)
             {
                 if (!ec) bytes_read += recv_some(ec);
 
-                if (ec == boost::asio::error::would_block) return async_schedule();
+                if (ec == error::try_again || ec == error::would_block) return async_schedule();
 
                 read_buffers.clear();
                 auto handler = std::exchange(read_handler, nullptr);
@@ -505,12 +507,14 @@ private:
 
         void handle_write(error_code ec = {})
         {
+            namespace error = boost::asio::error;
+
             is_writing = false;
             if (write_handler)
             {
                 if (!ec) bytes_written += send_some(ec);
 
-                if (ec == boost::asio::error::would_block) return async_schedule();
+                if (ec == error::try_again || ec == error::would_block) return async_schedule();
 
                 write_buffers.clear();
                 auto handler = std::exchange(write_handler, nullptr);
@@ -642,6 +646,8 @@ private:
 
         static ssize_t pull_func(void* ptr, void* buffer, std::size_t size)
         {
+            namespace error = boost::asio::error;
+
             auto* im = static_cast<impl*>(ptr);
             if (!im->parent)
             {
@@ -652,10 +658,11 @@ private:
             auto& next_layer = im->parent->m_next_layer;
             error_code ec;
             std::size_t bytes_read = next_layer.read_some(boost::asio::buffer(buffer, size), ec);
-            if (ec && ec != boost::asio::error::eof)
+            if (ec && ec != error::eof && ec != error::connection_reset) // consider reset as close
             {
                 gnutls_transport_set_errno(
-                    im->session, ec == boost::asio::error::would_block ? EAGAIN : ECONNRESET);
+                    im->session,
+                    (ec == error::try_again || ec == error::would_block) ? EAGAIN : ECONNRESET);
                 return -1;
             }
 
@@ -665,6 +672,8 @@ private:
 
         static ssize_t push_func(void* ptr, const void* data, std::size_t len)
         {
+            namespace error = boost::asio::error;
+
             auto* im = static_cast<impl*>(ptr);
             if (!im->parent)
             {
@@ -679,7 +688,8 @@ private:
             if (ec)
             {
                 gnutls_transport_set_errno(
-                    im->session, ec == boost::asio::error::would_block ? EAGAIN : ECONNRESET);
+                    im->session,
+                    (ec == error::try_again || ec == error::would_block) ? EAGAIN : ECONNRESET);
                 return -1;
             }
 
