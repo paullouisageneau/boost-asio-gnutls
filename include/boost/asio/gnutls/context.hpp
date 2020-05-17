@@ -102,8 +102,9 @@ public:
 
     error_code set_default_verify_paths(error_code& ec)
     {
+        // Returns the number of certificates processed
         int ret = gnutls_certificate_set_x509_system_trust(m_impl->cred);
-        if (ret != GNUTLS_E_SUCCESS) ec = error_code(ret, error::get_ssl_category());
+        if (ret < 0) ec = error_code(ret, error::get_ssl_category());
         return ec;
     }
 
