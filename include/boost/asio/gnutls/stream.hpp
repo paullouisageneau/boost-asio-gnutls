@@ -34,6 +34,8 @@ namespace boost {
 namespace asio {
 namespace gnutls {
 
+using boost::asio::async_completion;
+
 template <typename NextLayer> class stream : public stream_base
 {
 public:
@@ -49,7 +51,7 @@ public:
         , m_next_layer(std::forward<Arg>(arg))
         , m_tls_version(ctx.m_impl->tls_version())
     {
-        set_impl(ctx.m_impl->is_server() ? server : client);
+        ensure_impl(ctx.m_impl->is_server() ? server : client);
     }
 
     stream(stream&& other)
@@ -123,12 +125,21 @@ public:
     }
 
     template <typename HandshakeHandler>
-    void async_handshake(handshake_type type, HandshakeHandler handler)
+    BOOST_ASIO_INITFN_RESULT_TYPE(HandshakeHandler, void(error_code))
+    async_handshake(handshake_type type, HandshakeHandler&& handler)
     {
+        // If you get an error on the following line it means that your handler does
+        // not meet the documented type requirements for a HandshakeHandler.
+        BOOST_ASIO_HANDSHAKE_HANDLER_CHECK(HandshakeHandler, handler) type_check;
+
+        auto async =
+            std::make_shared<async_completion<HandshakeHandler, void(error_code)>>(handler);
+
         if (m_impl->handshake_handler || m_impl->is_handshake_done)
         {
             post(get_executor(),
-                 std::bind(std::move(handler), boost::asio::error::operation_not_supported));
+                 std::bind(std::move(async->completion_handler),
+                           boost::asio::error::operation_not_supported));
             return;
         }
 
@@ -136,30 +147,83 @@ public:
         m_next_layer.non_blocking(true, ec);
         if (ec)
         {
-            post(get_executor(), std::bind(std::move(handler), ec));
+            post(get_executor(), std::bind(std::move(async->completion_handler), ec));
             return;
         }
 
-        set_impl(type);
-        m_impl->handshake_handler = std::move(handler);
+        ensure_impl(type);
+        m_impl->handshake_handler = [async](error_code const& ec) {
+            async->completion_handler(ec);
+        };
         m_impl->handle_handshake();
+        return async->result.get();
     }
 
     template <typename ConstBufferSequence, typename BufferedHandshakeHandler>
-    void async_handshake(handshake_type type,
-                         const ConstBufferSequence& buffers,
-                         BufferedHandshakeHandler handler)
+    BOOST_ASIO_INITFN_RESULT_TYPE(BufferedHandshakeHandler, void(error_code, std::size_t))
+    async_handshake(handshake_type type,
+                    const ConstBufferSequence& buffers,
+                    BufferedHandshakeHandler&& handler)
     {
-        async_handshake(type, std::bind(handler, std::placeholders::_1, std::size_t(0)));
+        // If you get an error on the following line it means that your handler does
+        // not meet the documented type requirements for a BufferedHandshakeHandler.
+        BOOST_ASIO_BUFFERED_HANDSHAKE_HANDLER_CHECK(BufferedHandshakeHandler, handler) type_check;
+
+        auto async = std::make_shared<
+            async_completion<BufferedHandshakeHandler, void(error_code, std::size_t)>>(handler);
+
+        async_handshake(
+            type,
+            std::bind(std::move(async->completion_handler), std::placeholders::_1, std::size_t(0)));
+        return async->result.get();
+    }
+
+    template <typename ShutdownHandler>
+    BOOST_ASIO_INITFN_RESULT_TYPE(ShutdownHandler, void(error_code))
+    async_shutdown(ShutdownHandler&& handler)
+    {
+        // If you get an error on the following line it means that your handler does
+        // not meet the documented type requirements for a ShutdownHandler.
+        BOOST_ASIO_SHUTDOWN_HANDLER_CHECK(ShutdownHandler, handler) type_check;
+
+        auto async = std::make_shared<async_completion<ShutdownHandler, void(error_code)>>(handler);
+
+        if (m_impl->shutdown_handler || !m_impl->is_handshake_done)
+        {
+            post(get_executor(),
+                 std::bind(std::move(async->completion_handler),
+                           boost::asio::error::operation_not_supported));
+            return;
+        }
+
+        error_code ec;
+        m_next_layer.non_blocking(true, ec);
+        if (ec)
+        {
+            post(get_executor(), std::bind(std::move(async->completion_handler), ec));
+            return;
+        }
+
+        m_impl->shutdown_handler = [async](error_code const& ec) { async->completion_handler(ec); };
+        m_impl->handle_shutdown();
+        return async->result.get();
     }
 
     template <typename MutableBufferSequence, typename ReadHandler>
-    void async_read_some(const MutableBufferSequence& buffers, ReadHandler handler)
+    BOOST_ASIO_INITFN_RESULT_TYPE(ReadHandler, void(error_code, std::size_t))
+    async_read_some(const MutableBufferSequence& buffers, ReadHandler&& handler)
     {
+        // If you get an error on the following line it means that your handler does
+        // not meet the documented type requirements for a ReadHandler.
+        BOOST_ASIO_READ_HANDLER_CHECK(ReadHandler, handler) type_check;
+
+        auto async =
+            std::make_shared<async_completion<ReadHandler, void(error_code, std::size_t)>>(handler);
+
         if (m_impl->read_handler)
         {
             post(get_executor(),
-                 std::bind(std::move(handler),
+                 std::bind(std::move(async->completion_handler),
                            boost::asio::error::operation_not_supported,
                            std::size_t(0)));
             return;
@@ -169,7 +233,8 @@ public:
         m_next_layer.non_blocking(true, ec);
         if (ec)
         {
-            post(get_executor(), std::bind(std::move(handler), ec, std::size_t(0)));
+            post(get_executor(),
+                 std::bind(std::move(async->completion_handler), ec, std::size_t(0)));
             return;
         }
 
@@ -177,29 +242,44 @@ public:
         for (auto b = buffer_sequence_begin(buffers), end(buffer_sequence_end(buffers)); b != end;
              ++b)
         {
-            if (b->size() == 0) continue;
-            m_impl->read_buffers.push_back(*b);
-            bytes_added += b->size();
+            auto r = *b; // operator -> might be deleted
+            if (r.size() == 0) continue;
+            m_impl->read_buffers.push_back(r);
+            bytes_added += r.size();
         }
 
         if (bytes_added == 0)
         {
             // if we're reading 0 bytes, post handler immediately
-            post(get_executor(), std::bind<void>(std::move(handler), error_code(), std::size_t(0)));
+            post(get_executor(),
+                 std::bind<void>(
+                     std::move(async->completion_handler), error_code(), std::size_t(0)));
             return;
         }
 
-        m_impl->read_handler = std::move(handler);
+        m_impl->read_handler = [async](error_code const& ec, std::size_t size) {
+            async->completion_handler(ec, size);
+        };
         m_impl->async_schedule();
+        return async->result.get();
     }
 
     template <typename ConstBufferSequence, typename WriteHandler>
-    void async_write_some(const ConstBufferSequence& buffers, WriteHandler handler)
+    BOOST_ASIO_INITFN_RESULT_TYPE(WriteHandler, void(error_code, std::size_t))
+    async_write_some(const ConstBufferSequence& buffers, WriteHandler&& handler)
     {
+        // If you get an error on the following line it means that your handler does
+        // not meet the documented type requirements for a WriteHandler.
+        BOOST_ASIO_WRITE_HANDLER_CHECK(WriteHandler, handler) type_check;
+
+        auto async =
+            std::make_shared<async_completion<WriteHandler, void(error_code, std::size_t)>>(
+                handler);
+
         if (m_impl->write_handler)
         {
             post(get_executor(),
-                 std::bind(std::move(handler),
+                 std::bind(std::move(async->completion_handler),
                            boost::asio::error::operation_not_supported,
                            std::size_t(0)));
             return;
@@ -209,7 +289,8 @@ public:
         m_next_layer.non_blocking(true, ec);
         if (ec)
         {
-            post(get_executor(), std::bind(std::move(handler), ec, std::size_t(0)));
+            post(get_executor(),
+                 std::bind(std::move(async->completion_handler), ec, std::size_t(0)));
             return;
         }
 
@@ -217,42 +298,27 @@ public:
         for (auto b = buffer_sequence_begin(buffers), end(buffer_sequence_end(buffers)); b != end;
              ++b)
         {
-            if (b->size() == 0) continue;
-            m_impl->write_buffers.push_back(*b);
-            bytes_added += b->size();
+            auto r = *b; // operator -> might be deleted
+            if (r.size() == 0) continue;
+            m_impl->write_buffers.push_back(r);
+            bytes_added += r.size();
         }
 
         if (bytes_added == 0)
         {
             // if we're writing 0 bytes, post handler immediately
-            post(get_executor(), std::bind<void>(std::move(handler), error_code(), std::size_t(0)));
+            post(get_executor(),
+                 std::bind<void>(
+                     std::move(async->completion_handler), error_code(), std::size_t(0)));
             return;
         }
 
-        m_impl->write_handler = std::move(handler);
+        m_impl->write_handler = [async](error_code const& ec, std::size_t size) {
+            async->completion_handler(ec, size);
+        };
         m_impl->bytes_written = 0;
         m_impl->async_schedule();
-    }
-
-    template <typename ShutdownHandler> void async_shutdown(ShutdownHandler handler)
-    {
-        if (m_impl->shutdown_handler || !m_impl->is_handshake_done)
-        {
-            post(get_executor(),
-                 std::bind(std::move(handler), boost::asio::error::operation_not_supported));
-            return;
-        }
-
-        error_code ec;
-        m_next_layer.non_blocking(true, ec);
-        if (ec)
-        {
-            post(get_executor(), std::bind(std::move(handler), ec));
-            return;
-        }
-
-        m_impl->shutdown_handler = std::move(handler);
-        m_impl->handle_shutdown();
+        return async->result.get();
     }
 
     void handshake(handshake_type type)
@@ -264,7 +330,7 @@ public:
 
     error_code handshake(handshake_type type, error_code& ec)
     {
-        set_impl(type);
+        ensure_impl(type);
         int ret;
         do {
             ret = gnutls_handshake(m_impl->session);
@@ -398,13 +464,6 @@ private:
         read,
         write
     };
-
-    void set_impl(handshake_type type)
-    {
-        if (!m_impl || m_impl->type != type)
-            if (auto old = std::exchange(m_impl, std::make_shared<impl>(this, type)))
-                old->parent = nullptr;
-    }
 
     next_layer_type m_next_layer;
     verify_mode m_verify = -1;
@@ -809,6 +868,14 @@ private:
         std::size_t bytes_read = 0;
         std::size_t bytes_written = 0;
     };
+
+    std::shared_ptr<impl> ensure_impl(handshake_type type)
+    {
+        if (!m_impl || m_impl->type != type)
+            if (auto old = std::exchange(m_impl, std::make_shared<impl>(this, type)))
+                old->parent = nullptr;
+        return m_impl;
+    }
 
     std::shared_ptr<impl> m_impl;
 };
