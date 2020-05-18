@@ -68,7 +68,10 @@ public:
     stream(stream const& other) = delete;
     ~stream()
     {
-        if (m_impl) m_impl->parent = nullptr;
+        if (m_impl) {
+            m_impl->abort();
+            m_impl->parent = nullptr;
+        }
     }
 
     executor_type get_executor() { return m_next_layer.get_executor(); }
@@ -204,6 +207,7 @@ public:
             return;
         }
 
+        m_impl->abort();
         m_impl->shutdown_handler = [async](error_code const& ec) { async->completion_handler(ec); };
         m_impl->handle_shutdown();
         return async->result.get();
@@ -330,6 +334,9 @@ public:
 
     error_code handshake(handshake_type type, error_code& ec)
     {
+        if (m_impl->is_handshake_done)
+            return ec = boost::asio::error::operation_not_supported;
+
         ensure_impl(type);
         int ret;
         do {
@@ -518,6 +525,17 @@ private:
         }
 
         ~impl() { gnutls_deinit(session); }
+
+        void abort() {
+            if(auto handler = std::exchange(handshake_handler, nullptr))
+                handler(boost::asio::error::operation_aborted);
+            if(auto handler = std::exchange(shutdown_handler, nullptr))
+                handler(boost::asio::error::operation_aborted);
+            if(auto handler = std::exchange(read_handler, nullptr))
+                handler(boost::asio::error::operation_aborted, std::size_t(0));
+            if(auto handler = std::exchange(write_handler, nullptr))
+                handler(boost::asio::error::operation_aborted, std::size_t(0));
+        }
 
         std::string get_server_name() const
         {
@@ -872,8 +890,10 @@ private:
     std::shared_ptr<impl> ensure_impl(handshake_type type)
     {
         if (!m_impl || m_impl->type != type)
-            if (auto old = std::exchange(m_impl, std::make_shared<impl>(this, type)))
+            if (auto old = std::exchange(m_impl, std::make_shared<impl>(this, type))) {
+                old->abort();
                 old->parent = nullptr;
+            }
         return m_impl;
     }
 
