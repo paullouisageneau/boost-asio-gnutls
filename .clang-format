@@ -21,7 +21,6 @@ BraceWrapping:
   AfterControlStatement: Always
   BeforeCatch: true
   BeforeElse: true
-  BeforeLambdaBody: true
   SplitEmptyFunction: false
   SplitEmptyRecord: false
   SplitEmptyNamespace: false
