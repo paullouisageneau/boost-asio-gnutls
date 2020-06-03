@@ -54,10 +54,10 @@ public:
 
     stream(stream&& other)
         : stream_base(std::move(other))
-        , m_tls_version(std::move(other.m_tls_version))
         , m_next_layer(std::move(other.m_next_layer))
         , m_verify(std::move(other.m_verify))
         , m_verify_callback(std::move(other.m_verify_callback))
+        , m_tls_version(other.m_tls_version)
         , m_impl(std::move(other.m_impl))
     {
         m_impl->parent = this;
@@ -479,8 +479,7 @@ private:
     next_layer_type m_next_layer;
     verify_mode m_verify = -1;
     std::function<bool(bool preverified, verify_context& ctx)> m_verify_callback;
-
-    const unsigned int m_tls_version; // X*10 + Y => TLS X.Y, 0*10 + Z => SSL Z
+    unsigned int m_tls_version; // X*10 + Y => TLS X.Y, 0*10 + Z => SSL Z
 
     struct impl : public std::enable_shared_from_this<impl>
     {
