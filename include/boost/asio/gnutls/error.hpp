@@ -36,6 +36,13 @@ public:
 
 namespace error {
 
+enum stream_errors
+{
+  stream_truncated = 1,
+  unspecified_system_error = 2,
+  unexpected_result = 3
+};
+
 static const boost::system::error_category& get_ssl_category()
 {
     static error_category instance;
