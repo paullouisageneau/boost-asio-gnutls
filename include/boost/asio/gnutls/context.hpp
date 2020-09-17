@@ -283,6 +283,15 @@ public:
         return ec;
     }
 
+    int use_verify_file(std::string const& ca_file, file_format format)
+    {
+        int ret = gnutls_certificate_set_x509_trust_file(m_impl->cred,
+                                                         ca_file.c_str(),
+                                                         format == pem ? GNUTLS_X509_FMT_PEM
+                                                                       : GNUTLS_X509_FMT_DER);
+        return ret;
+    }
+
 #ifndef BOOST_NO_EXCEPTIONS
     void use_tmp_dh(const_buffer const& dh)
     {
