@@ -244,8 +244,7 @@ public:
             return;
         }
 
-        using namespace std::placeholders;
-        m_impl->read_handler = std::bind(callable, _1, _2);
+        m_impl->read_handler = std::bind(callable, std::placeholders::_1, std::placeholders::_2);
         m_impl->bytes_read = 0;
         m_impl->async_schedule();
         return callable.get_completion_result();
@@ -293,8 +292,7 @@ public:
             return;
         }
 
-        using namespace std::placeholders;
-        m_impl->write_handler = std::bind(callable, _1, _2);
+        m_impl->write_handler = std::bind(callable, std::placeholders::_1, std::placeholders::_2);
         m_impl->bytes_written = 0;
         m_impl->async_schedule();
         return callable.get_completion_result();
@@ -568,8 +566,6 @@ private:
 
         void async_schedule()
         {
-            using namespace std::placeholders;
-
             if (!parent) return;
             auto& next_layer = parent->m_next_layer;
 
@@ -581,14 +577,14 @@ private:
                 else
                     next_layer.async_wait(
                         next_layer_type::wait_read,
-                        std::bind(&impl::handle_read, this->shared_from_this(), _1));
+                        std::bind(&impl::handle_read, this->shared_from_this(), std::placeholders::_1));
             }
 
             // Start a write operation if GnuTLS wants one
             if (want_write() && !std::exchange(is_writing, true))
             {
                 next_layer.async_wait(next_layer_type::wait_write,
-                        std::bind(&impl::handle_write, this->shared_from_this(), _1));
+                        std::bind(&impl::handle_write, this->shared_from_this(), std::placeholders::_1));
             }
         }
 
