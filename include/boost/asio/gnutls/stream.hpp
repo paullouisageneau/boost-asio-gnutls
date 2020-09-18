@@ -654,8 +654,16 @@ private:
                     ec = error_code(ret, error::get_ssl_category());
             }
 
-            auto handler = std::exchange(handshake_handler, nullptr);
-            post(std::bind(std::move(handler), ec));
+            if (handshake_handler != nullptr)
+            {
+                auto handler = std::exchange(handshake_handler, nullptr);
+                post(std::bind(std::move(handler), ec));
+            }
+        }
+
+        bool is_safe_renegotiation_enabled()
+        {
+            return gnutls_safe_renegotiation_status(session) != 0;
         }
 
         void handle_shutdown(error_code ec = {})
@@ -694,6 +702,8 @@ private:
                         ec = boost::asio::error::would_block;
                     else if (ret == GNUTLS_E_PREMATURE_TERMINATION)
                         ec = error::stream_truncated;
+                    else if (ret == GNUTLS_E_REHANDSHAKE && is_safe_renegotiation_enabled())
+                        handle_handshake(ec);
                     else if (gnutls_error_is_fatal(ret))
                         ec = error_code(ret, error::get_ssl_category());
                     else
