@@ -283,7 +283,7 @@ public:
         return ec;
     }
 
-    int use_verify_file(std::string const& ca_file, file_format format)
+    int load_verify_file(std::string const& ca_file, file_format format = file_format::pem)
     {
         int ret = gnutls_certificate_set_x509_trust_file(m_impl->cred,
                                                          ca_file.c_str(),
