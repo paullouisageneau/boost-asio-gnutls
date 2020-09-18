@@ -55,7 +55,32 @@ static const auto& ssl_category BOOST_ASIO_UNUSED_VARIABLE = get_ssl_category();
 static const auto& stream_category BOOST_ASIO_UNUSED_VARIABLE = get_stream_category();
 
 } // namespace error
+} // namespace gnutls
+} // namespace asio
+} // namespace boost
 
+namespace boost {
+namespace system {
+
+template<> struct is_error_code_enum<boost::asio::gnutls::error::stream_errors>
+{
+  static const bool value = true;
+};
+
+} // namespace system
+} // namespace boost
+
+namespace boost {
+namespace asio {
+namespace gnutls {
+namespace error {
+inline boost::system::error_code make_error_code(stream_errors e)
+{
+  return boost::system::error_code(
+      static_cast<int>(e), get_stream_category());
+}
+
+} // namespace error
 } // namespace gnutls
 } // namespace asio
 } // namespace boost

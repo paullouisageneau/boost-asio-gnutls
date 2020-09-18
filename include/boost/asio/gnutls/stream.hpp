@@ -318,7 +318,11 @@ public:
             ret = gnutls_handshake(m_impl->session);
         } while (ret != GNUTLS_E_SUCCESS && !gnutls_error_is_fatal(ret));
 
-        if (ret != GNUTLS_E_SUCCESS) return ec = error_code(ret, error::get_ssl_category());
+        if (ret == GNUTLS_E_PREMATURE_TERMINATION)
+            return ec = error::stream_truncated;
+        else if (ret != GNUTLS_E_SUCCESS)
+            return ec = error_code(ret, error::get_ssl_category());
+
         m_impl->is_handshake_done = true;
         return ec;
     }
@@ -356,7 +360,11 @@ public:
             ret = gnutls_bye(m_impl->session, GNUTLS_SHUT_RDWR);
         } while (ret != GNUTLS_E_SUCCESS && !gnutls_error_is_fatal(ret));
 
-        if (ret != GNUTLS_E_SUCCESS) return ec = error_code(ret, error::get_ssl_category());
+        if (ret == GNUTLS_E_PREMATURE_TERMINATION)
+            return ec = error::stream_truncated;
+        else if (ret != GNUTLS_E_SUCCESS)
+            return ec = error_code(ret, error::get_ssl_category());
+
         m_impl->is_handshake_done = false;
         return ec;
     }
@@ -640,6 +648,8 @@ private:
                 want_direction = direction::none;
                 if (ret == GNUTLS_E_SUCCESS)
                     is_handshake_done = true;
+                else if (ret == GNUTLS_E_PREMATURE_TERMINATION)
+                    ec = error::stream_truncated;
                 else
                     ec = error_code(ret, error::get_ssl_category());
             }
@@ -682,6 +692,8 @@ private:
                 {
                     if (ret == GNUTLS_E_AGAIN)
                         ec = boost::asio::error::would_block;
+                    else if (ret == GNUTLS_E_PREMATURE_TERMINATION)
+                        ec = error::stream_truncated;
                     else if (gnutls_error_is_fatal(ret))
                         ec = error_code(ret, error::get_ssl_category());
                     else
@@ -728,6 +740,8 @@ private:
                 {
                     if (ret == GNUTLS_E_AGAIN)
                         ec = boost::asio::error::would_block;
+                    else if (ret == GNUTLS_E_PREMATURE_TERMINATION)
+                        ec = error::stream_truncated;
                     else if (gnutls_error_is_fatal(ret))
                         ec = error_code(ret, error::get_ssl_category());
                     else
