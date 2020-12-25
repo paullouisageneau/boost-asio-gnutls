@@ -66,7 +66,8 @@ public:
     stream(stream const& other) = delete;
     ~stream()
     {
-        if (m_impl) {
+        if (m_impl)
+        {
             m_impl->abort();
             m_impl->parent = nullptr;
         }
@@ -105,10 +106,7 @@ public:
 #endif
 
     // Warning: ignored
-    error_code set_verify_depth(int, error_code& ec)
-    {
-        return ec;
-    }
+    error_code set_verify_depth(int, error_code& ec) { return ec; }
 
 #ifndef BOOST_NO_EXCEPTIONS
     template <typename VerifyCallback> void set_verify_callback(VerifyCallback callback)
@@ -307,8 +305,7 @@ public:
 
     error_code handshake(handshake_type type, error_code& ec)
     {
-        if (m_impl->is_handshake_done)
-            return ec = boost::asio::error::operation_not_supported;
+        if (m_impl->is_handshake_done) return ec = boost::asio::error::operation_not_supported;
 
         ensure_impl(type);
         int ret;
@@ -535,20 +532,20 @@ private:
 
         ~impl() { gnutls_deinit(session); }
 
-        template<typename Function> void post(Function&& function) const
+        template <typename Function> void post(Function&& function) const
         {
-            if(parent)
-                boost::asio::post(parent->get_executor(), std::forward<Function>(function));
+            if (parent) boost::asio::post(parent->get_executor(), std::forward<Function>(function));
         }
 
-        void abort() {
-            if(auto handler = std::exchange(handshake_handler, nullptr))
+        void abort()
+        {
+            if (auto handler = std::exchange(handshake_handler, nullptr))
                 handler(boost::asio::error::operation_aborted);
-            if(auto handler = std::exchange(shutdown_handler, nullptr))
+            if (auto handler = std::exchange(shutdown_handler, nullptr))
                 handler(boost::asio::error::operation_aborted);
-            if(auto handler = std::exchange(read_handler, nullptr))
+            if (auto handler = std::exchange(read_handler, nullptr))
                 handler(boost::asio::error::operation_aborted, std::size_t(0));
-            if(auto handler = std::exchange(write_handler, nullptr))
+            if (auto handler = std::exchange(write_handler, nullptr))
                 handler(boost::asio::error::operation_aborted, std::size_t(0));
         }
 
@@ -566,6 +563,9 @@ private:
 
         void async_schedule()
         {
+            constexpr auto wait_read = std::remove_reference<next_layer_type>::type::wait_read;
+            constexpr auto wait_write = std::remove_reference<next_layer_type>::type::wait_write;
+
             if (!parent) return;
             auto& next_layer = parent->m_next_layer;
 
@@ -575,16 +575,19 @@ private:
                 if (gnutls_record_check_pending(session) > 0 && read_handler)
                     handle_read();
                 else
-                    next_layer.async_wait(
-                        next_layer_type::wait_read,
-                        std::bind(&impl::handle_read, this->shared_from_this(), std::placeholders::_1));
+                    next_layer.async_wait(wait_read,
+                                          std::bind(&impl::handle_read,
+                                                    this->shared_from_this(),
+                                                    std::placeholders::_1));
             }
 
             // Start a write operation if GnuTLS wants one
             if (want_write() && !std::exchange(is_writing, true))
             {
-                next_layer.async_wait(next_layer_type::wait_write,
-                        std::bind(&impl::handle_write, this->shared_from_this(), std::placeholders::_1));
+                next_layer.async_wait(wait_write,
+                                      std::bind(&impl::handle_write,
+                                                this->shared_from_this(),
+                                                std::placeholders::_1));
             }
         }
 
@@ -622,7 +625,8 @@ private:
 
                 write_buffers.clear();
                 auto handler = std::exchange(write_handler, nullptr);
-                post(std::bind(std::move(handler), ec, std::exchange(bytes_written, std::size_t(0))));
+                post(std::bind(
+                    std::move(handler), ec, std::exchange(bytes_written, std::size_t(0))));
             }
 
             if (handshake_handler) return handle_handshake(ec);
@@ -920,7 +924,8 @@ private:
     std::shared_ptr<impl> ensure_impl(handshake_type type)
     {
         if (!m_impl || m_impl->type != type)
-            if (auto old = std::exchange(m_impl, std::make_shared<impl>(this, type))) {
+            if (auto old = std::exchange(m_impl, std::make_shared<impl>(this, type)))
+            {
                 old->abort();
                 old->parent = nullptr;
             }
