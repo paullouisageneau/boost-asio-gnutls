@@ -283,13 +283,21 @@ public:
         return ec;
     }
 
-    int load_verify_file(std::string const& ca_file, file_format format = file_format::pem)
+#ifndef BOOST_NO_EXCEPTIONS
+    void load_verify_file(std::string const& ca_file)
+    {
+        error_code ec;
+        load_verify_file(ca_file, ec);
+        if (ec) boost::throw_exception(boost::system::system_error(ec));
+    }
+#endif
+
+    void load_verify_file(std::string const& ca_file, error_code& ec)
     {
         int ret = gnutls_certificate_set_x509_trust_file(m_impl->cred,
                                                          ca_file.c_str(),
-                                                         format == pem ? GNUTLS_X509_FMT_PEM
-                                                                       : GNUTLS_X509_FMT_DER);
-        return ret;
+                                                         GNUTLS_X509_FMT_PEM);
+        if (ret < 0) ec = error_code(ret, error::get_ssl_category());
     }
 
 #ifndef BOOST_NO_EXCEPTIONS
