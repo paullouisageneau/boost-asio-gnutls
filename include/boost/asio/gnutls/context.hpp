@@ -301,6 +301,23 @@ public:
     }
 
 #ifndef BOOST_NO_EXCEPTIONS
+    void add_verify_path(std::string const& dir)
+    {
+        error_code ec;
+        add_verify_path(dir, ec);
+        if (ec) boost::throw_exception(boost::system::system_error(ec));
+    }
+#endif
+
+    void add_verify_path(std::string const& dir, error_code& ec)
+    {
+        int ret = gnutls_certificate_set_x509_trust_dir(m_impl->cred,
+                                                        dir.c_str(),
+                                                        GNUTLS_X509_FMT_PEM);
+        if (ret < 0) ec = error_code(ret, error::get_ssl_category());
+    }
+
+#ifndef BOOST_NO_EXCEPTIONS
     void use_tmp_dh(const_buffer const& dh)
     {
         error_code ec;
